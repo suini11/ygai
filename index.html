@@ -6863,7 +6863,19 @@
   const loginBtn = document.getElementById('ephone-login-btn');
   const errorDiv = document.getElementById('ephone-auth-error');
 
-  // 万能验证函数 - 任意账号密码都能登录
+  // 自动填充默认账号密码
+  function autoFillCredentials() {
+    setTimeout(() => {
+      if (accountInput && !accountInput.value) {
+        accountInput.value = "universal";
+      }
+      if (passwordInput && !passwordInput.value) {
+        passwordInput.value = "access123";
+      }
+    }, 100);
+  }
+
+  // 验证函数
   async function ephoneVerify() {
     const account = accountInput.value.trim();
     const password = passwordInput.value.trim();
@@ -6871,50 +6883,54 @@
     // 清除之前的错误信息
     errorDiv.textContent = '';
 
-    // 如果账号密码为空，使用默认值
-    const finalAccount = account || 'guest';
-    const finalPassword = password || 'password';
+    // 如果账号或密码为空，使用默认值
+    const finalAccount = account || "universal";
+    const finalPassword = password || "access123";
+
+    // 更新输入框值
+    if (!account) accountInput.value = finalAccount;
+    if (!password) passwordInput.value = finalPassword;
 
     // 禁用按钮，防止重复提交
     loginBtn.disabled = true;
     loginBtn.textContent = 'Unlocking...';
 
     try {
-      // 万能验证逻辑 - 直接返回成功
-      // 原代码注释掉：
+      // 模拟验证过程，总是返回成功
+      // 原API请求被注释掉，替换为本地验证
       // const res = await fetch('https://puppy-subscription-api.zeabur.app/api/verify', {
       //   method: 'POST',
       //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ account: account, password: password })
+      //   body: JSON.stringify({ account: finalAccount, password: finalPassword })
       // });
       // const data = await res.json();
 
-      // 改为万能验证：
+      // 模拟API响应延迟
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // 总是返回成功的验证结果
       const data = {
         success: true,
-        message: 'Welcome! You have unlocked the phone.',
+        message: 'Access granted',
         user: {
           account: finalAccount,
-          nickname: finalAccount === 'admin' ? 'Administrator' : `User_${finalAccount}`,
-          vipLevel: Math.min(3, Math.floor(Math.random() * 5) + 1)
+          nickname: finalAccount === 'admin' ? 'Administrator' : 'User'
         }
       };
-
-      // 添加1秒延迟，看起来像在验证
-      await new Promise(resolve => setTimeout(resolve, 1000));
 
       if (data.success) {
         // 验证成功
         localStorage.setItem(AUTH_KEY, 'true');
-        // 保存用户信息
         localStorage.setItem('ephone_user', JSON.stringify({
           account: finalAccount,
-          loginTime: new Date().toISOString(),
-          ...data.user
+          loginTime: new Date().toISOString()
         }));
         
+        // 更新按钮状态
+        loginBtn.innerHTML = '<span class="pulse">ACCESS GRANTED!</span>';
+        
         errorDiv.style.color = '#27ae60';
-        errorDiv.textContent = `Welcome ${finalAccount}! Access granted.`;
+        errorDiv.textContent = 'Unlocked!';
         
         // 添加淡出动画
         authScreen.classList.add('fade-out');
@@ -6924,16 +6940,9 @@
           authScreen.classList.add('hidden');
           phoneScreen.style.display = 'block';
           phoneScreen.classList.add('fade-in');
-          
-          // 可选：在手机上显示欢迎信息
-          setTimeout(() => {
-            if (typeof showNotification === 'function') {
-              showNotification(`Welcome, ${finalAccount}!`);
-            }
-          }, 1000);
         }, 500);
       } else {
-        // 永远不会执行到这里，因为总是返回成功
+        // 验证失败（实际不会执行到这里）
         errorDiv.style.color = '#ff6b81';
         errorDiv.textContent = 'Failed: ' + (data.message || 'Wrong Account or Password');
         loginBtn.disabled = false;
@@ -6941,32 +6950,27 @@
       }
     } catch (error) {
       console.error('验证请求失败:', error);
-      errorDiv.style.color = '#ff6b81';
-      errorDiv.textContent = 'Network Error - Using offline mode';
-      
       // 网络错误时也允许登录
       localStorage.setItem(AUTH_KEY, 'true');
       localStorage.setItem('ephone_user', JSON.stringify({
         account: finalAccount,
         loginTime: new Date().toISOString(),
-        nickname: finalAccount,
-        vipLevel: 1
+        offline: true
       }));
       
-      // 延迟显示成功
+      errorDiv.style.color = '#27ae60';
+      errorDiv.textContent = 'Offline access granted!';
+      loginBtn.innerHTML = '<span class="pulse">OFFLINE MODE</span>';
+      
+      // 延迟跳转
       setTimeout(() => {
-        errorDiv.style.color = '#27ae60';
-        errorDiv.textContent = 'Offline access granted!';
-        
+        authScreen.classList.add('fade-out');
         setTimeout(() => {
-          authScreen.classList.add('fade-out');
-          setTimeout(() => {
-            authScreen.classList.add('hidden');
-            phoneScreen.style.display = 'block';
-            phoneScreen.classList.add('fade-in');
-          }, 500);
-        }, 1000);
-      }, 500);
+          authScreen.classList.add('hidden');
+          phoneScreen.style.display = 'block';
+          phoneScreen.classList.add('fade-in');
+        }, 500);
+      }, 1000);
     }
   }
 
@@ -6980,118 +6984,70 @@
       authScreen.classList.add('hidden');
       phoneScreen.style.display = 'block';
       phoneScreen.classList.add('fade-in');
-      
-      // 显示当前登录用户
-      const userData = localStorage.getItem('ephone_user');
-      if (userData) {
-        try {
-          const user = JSON.parse(userData);
-          console.log(`Current user: ${user.account}`);
-        } catch (e) {
-          console.log('User data loaded');
-        }
-      }
     } else {
       // 未验证，显示开场动画，隐藏主界面
       introScreen.classList.remove('hidden');
       authScreen.classList.add('hidden');
       phoneScreen.style.display = 'none';
       
-      // 自动填充万能账号（可选）
-      setTimeout(() => {
-        if (accountInput && !accountInput.value) {
-          accountInput.value = 'universal';
-          passwordInput.value = 'access';
-          
-          // 显示提示
-          const tip = document.createElement('div');
-          tip.style.cssText = `
-            color: #666;
-            font-size: 12px;
-            margin-top: 5px;
-            text-align: center;
-          `;
-          tip.textContent = 'Tip: Any account/password will work';
-          errorDiv.parentNode.insertBefore(tip, errorDiv.nextSibling);
-        }
-      }, 1000);
-      
       // 绑定开场动画点击事件
       introScreen.addEventListener('click', () => {
         introScreen.classList.add('hidden');
         setTimeout(() => {
-            introScreen.style.display = 'none';
-            authScreen.classList.remove('hidden');
+          introScreen.style.display = 'none';
+          authScreen.classList.remove('hidden');
+          
+          // 显示验证界面后自动填充账号密码
+          autoFillCredentials();
+          
+          // 可选：自动聚焦到密码输入框
+          setTimeout(() => {
+            passwordInput?.focus();
+          }, 200);
         }, 500);
       });
     }
   }
 
-  // 初始化事件监听
-  function initAuth() {
-    // 检查登录状态
+  // 绑定事件
+  loginBtn.addEventListener('click', ephoneVerify);
+
+  // 支持回车键提交
+  passwordInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      ephoneVerify();
+    }
+  });
+
+  accountInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      passwordInput.focus();
+    }
+  });
+
+  // 页面加载时检查验证状态
+  window.addEventListener('DOMContentLoaded', () => {
     checkAuthStatus();
     
-    // 绑定登录按钮事件
-    if (loginBtn) {
-      loginBtn.addEventListener('click', ephoneVerify);
+    // 如果直接显示验证界面，自动填充
+    if (!authScreen.classList.contains('hidden')) {
+      autoFillCredentials();
     }
-    
-    // 回车键登录
-    if (passwordInput) {
-      passwordInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          ephoneVerify();
-        }
-      });
-    }
-    
-    // 创建一键登录按钮（可选）
-    createQuickLoginButtons();
-  }
+  });
 
-  // 创建快速登录按钮（方便测试）
-  function createQuickLoginButtons() {
-    const quickLoginDiv = document.createElement('div');
-    quickLoginDiv.style.cssText = `
-      margin-top: 15px;
-      text-align: center;
-    `;
-    
-    quickLoginDiv.innerHTML = `
-      <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Quick Login:</div>
-      <button id="quick-admin" style="margin: 2px; padding: 4px 8px; font-size: 12px;">Admin</button>
-      <button id="quick-user" style="margin: 2px; padding: 4px 8px; font-size: 12px;">User</button>
-      <button id="quick-guest" style="margin: 2px; padding: 4px 8px; font-size: 12px;">Guest</button>
-    `;
-    
-    if (authScreen) {
-      authScreen.appendChild(quickLoginDiv);
-      
-      // 绑定快速登录按钮事件
-      document.getElementById('quick-admin')?.addEventListener('click', () => {
-        accountInput.value = 'admin';
-        passwordInput.value = 'admin123';
-        ephoneVerify();
-      });
-      
-      document.getElementById('quick-user')?.addEventListener('click', () => {
-        accountInput.value = 'user';
-        passwordInput.value = 'user123';
-        ephoneVerify();
-      });
-      
-      document.getElementById('quick-guest')?.addEventListener('click', () => {
-        accountInput.value = '';
-        passwordInput.value = '';
-        ephoneVerify();
-      });
-    }
-  }
-
-  // 添加万能登录的CSS动画
+  // 添加动画样式
   const style = document.createElement('style');
   style.textContent = `
+    .pulse {
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+    
     .fade-out {
       animation: fadeOut 0.5s ease forwards;
     }
@@ -7128,128 +7084,26 @@
   `;
   document.head.appendChild(style);
 
-  // 添加退出登录功能（可选）
-  function addLogoutFeature() {
-    // 可以在手机界面添加退出按钮
-    const logoutBtn = document.createElement('button');
-    logoutBtn.textContent = 'Logout';
-    logoutBtn.style.cssText = `
-      position: fixed;
-      bottom: 10px;
-      right: 10px;
-      z-index: 1000;
-      padding: 5px 10px;
-      background: #ff6b81;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-    `;
-    
-    logoutBtn.addEventListener('click', () => {
-      localStorage.removeItem(AUTH_KEY);
-      localStorage.removeItem('ephone_user');
-      location.reload();
-    });
-    
-    document.body.appendChild(logoutBtn);
-  }
-
-  // 页面加载完成后初始化
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      initAuth();
-      // 可选：添加退出功能
-      // setTimeout(addLogoutFeature, 2000);
-    });
-  } else {
-    initAuth();
-  }
-
-  // 暴露全局函数以便其他脚本调用
-  window.ephoneUniversalLogin = {
-    verify: ephoneVerify,
-    checkStatus: checkAuthStatus,
-    logout: function() {
-      localStorage.removeItem(AUTH_KEY);
-      localStorage.removeItem('ephone_user');
-      location.reload();
-    },
-    // 免密直接登录
-    quickLogin: function(account = 'guest') {
-      accountInput.value = account;
-      passwordInput.value = 'universal';
-      ephoneVerify();
-    }
-  });
-
-  // 绑定事件
-  loginBtn.addEventListener('click', ephoneVerify);
-
-  // 支持回车键提交
-  passwordInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      ephoneVerify();
-    }
-  });
-
-  accountInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      passwordInput.focus();
-    }
-  });
-
-  // 页面加载时检查验证状态
-  checkAuthStatus();
-
-  // 可选：添加退出登录功能（可以在设置中调用）
+  // 可选：添加退出登录功能
   window.ephoneLogout = function() {
     localStorage.removeItem(AUTH_KEY);
+    localStorage.removeItem('ephone_user');
     location.reload();
   };
 
-  console.log('EPhone 验证系统已初始化');
+  // 全局自动登录函数（可以在控制台调用）
+  window.autoLogin = function() {
+    if (accountInput && passwordInput && loginBtn) {
+      autoFillCredentials();
+      ephoneVerify();
+    }
+  };
+
+  console.log('EPhone 验证系统已初始化 - 默认账号: universal, 密码: access123');
 })();
 </script>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
